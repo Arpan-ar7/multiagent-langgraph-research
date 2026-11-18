@@ -2,7 +2,7 @@
 
 A research assistant built with **LangChain** and **LangGraph**. A team of LLM agents plans the research, searches the web and academic sources **in parallel**, fact-checks claims across sources, writes a report with **verifiable citations**, and critiques it, looping back for more research when it finds gaps.
 
-> **Status:** Phase 2 (production code) is done: 48 tests pass and mypy strict is clean. Notebooks 07–08 still need their real LLM runs (API quota). See [docs/architecture.md](docs/architecture.md) and [docs/experiments-log.md](docs/experiments-log.md).
+> **Status:** Phases 0–3 are built (58 tests, mypy strict clean). The evaluation harness is verified in dry-run mode, and the real benchmark run is in progress under the free-tier API quota. See [docs/architecture.md](docs/architecture.md) and [docs/experiments-log.md](docs/experiments-log.md).
 
 ## How it works
 
@@ -51,6 +51,20 @@ uv run research --resume <thread-id>                       # continue a paused o
 
 Reports are saved to `reports/`. Defaults can be overridden with `RS_*` environment variables (see `src/research_system/config/settings.py`).
 
+## Evaluation
+
+The system is benchmarked on 5 research questions of different types (technical, comparative, trend, factual, exploratory), comparing a **single pass** against the **critic loop**:
+
+- **Deterministic metrics:** grounding rate (claims whose cited URLs were actually retrieved), citation problems, sources, domains, critic iterations, LLM calls and tokens.
+- **LLM-as-judge:** relevance, completeness and specificity (1–5), on a separate model chain from the writer and critic, to reduce self-preference bias.
+- **LangSmith:** the questions live in the `research-system-benchmark` dataset, and every evaluated run's trace carries its scores as feedback.
+
+```bash
+uv run research-eval --dry-run            # verify the whole pipeline with stub agents (free)
+uv run research-eval --max-runs 2         # real runs; resumable across days, fits the free quota
+uv run research-eval --summary            # results table (also written to reports/evaluation.md)
+```
+
 ## Development
 
 ```bash
@@ -65,6 +79,7 @@ uv run ruff check . && uv run mypy src
 notebooks/            Phase 1 experiments (01–08), each ending with observations & decisions
 src/research_system/  config · schemas · prompts · tools · agents · graph · utils · service · cli
 tests/                unit · integration · live
+src/research_system/evals/  benchmark, metrics, judge, resumable runner, report
 docs/                 architecture, decision records, experiment log
 reports/              generated reports (gitignored)
 ```
@@ -74,6 +89,6 @@ reports/              generated reports (gitignored)
 - [x] Phase 0: Foundation and tooling
 - [~] Phase 1: Jupyter experiments (01–06 done; 07–08 real runs pending quota)
 - [x] Phase 2: Production implementation
-- [ ] Phase 3: Evaluation (LangSmith datasets, LLM-as-judge) and test hardening
+- [~] Phase 3: Evaluation harness done (LangSmith dataset, LLM-as-judge, resumable runner); real benchmark runs pending quota
 - [ ] Phase 4: FastAPI + Streamlit UI
 - [ ] Phase 5: Docker, CI, docs, demo

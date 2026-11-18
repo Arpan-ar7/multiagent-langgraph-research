@@ -18,7 +18,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 
 Provider = Literal["openrouter", "groq"]
-Role = Literal["reasoning", "worker"]
+Role = Literal["reasoning", "worker", "judge"]
 
 
 class ModelSpec(BaseModel):
@@ -68,6 +68,11 @@ class Settings(BaseSettings):
     worker_models: list[ModelSpec] = Field(
         default_factory=lambda: [ModelSpec.parse(m) for m in (_ERNIE, _NEMOTRON, _LING)]
     )
+    # The evaluation judge deliberately starts with a model that is neither the writer nor the
+    # critic, to reduce self-preference bias (see notebook 08).
+    judge_models: list[ModelSpec] = Field(
+        default_factory=lambda: [ModelSpec.parse(m) for m in (_LING, _NEMOTRON)]
+    )
     groq_reasoning_model: str = "llama-3.3-70b-versatile"
     groq_worker_model: str = "llama-3.1-8b-instant"
     llm_timeout_s: float = 90.0
@@ -95,7 +100,7 @@ class Settings(BaseSettings):
 
     log_level: str = "INFO"
 
-    @field_validator("reasoning_models", "worker_models", mode="before")
+    @field_validator("reasoning_models", "worker_models", "judge_models", mode="before")
     @classmethod
     def _parse_model_list(cls, value: object) -> object:
         """Accept a comma-separated `provider:model` string from the environment."""
@@ -104,7 +109,12 @@ class Settings(BaseSettings):
         return value
 
     def models_for(self, role: Role) -> list[ModelSpec]:
-        """Fallback chain for a role. Groq goes first automatically when its key is set."""
+        """Fallback chain for a role. Groq goes first automatically when its key is set.
+
+        The judge chain is left untouched so evaluation stays independent of the system's models.
+        """
+        if role == "judge":
+            return list(self.judge_models)
         chain = list(self.reasoning_models if role == "reasoning" else self.worker_models)
         if self.groq_api_key:
             groq = self.groq_reasoning_model if role == "reasoning" else self.groq_worker_model

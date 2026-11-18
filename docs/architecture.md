@@ -80,3 +80,7 @@ Dependencies point one way: `graph` depends on the `Agents` *interfaces* (`agent
 - `tests/unit`: schemas, settings, tools, fact-checker logic, citations, retry classification, the LLM factory (no network).
 - `tests/integration`: the real compiled graph with stub agents, covering parallel research, failures, the critic loop, plan review and crash-resume from SQLite.
 - `tests/live` (`-m live`): real APIs, skipped by default.
+
+## Evaluation (`research_system/evals`)
+
+`research-eval` runs each (configuration × question) pair on a stable, checkpointed thread (`eval-<config>-<hash>`). A run stopped by an exhausted quota therefore resumes mid-graph, and a failed *judge* call reuses the finished report. Results are appended to `data/eval_results.jsonl` as soon as each pair completes. Each evaluated run gets a fixed `run_id`, so its LangSmith trace receives the judge and metric scores as feedback. Dry runs use stateless stub agents and a separate checkpoint database, so they can never be mistaken for real results.

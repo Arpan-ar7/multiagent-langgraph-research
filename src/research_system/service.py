@@ -111,12 +111,15 @@ class ResearchService:
         query: str | None = None,
         options: RunOptions | None = None,
         decision: dict[str, Any] | None = None,
+        config_extra: dict[str, Any] | None = None,
     ) -> Iterator[Event]:
         """Advance a run from wherever it is and yield progress events.
 
         - new thread: starts with `query` (and `options`)
         - paused for review: resumes with `decision` (e.g. {"sub_questions": [...]})
         - incomplete (crash/quota): resumes at the failed node; finished steps are not repeated
+
+        `config_extra` is merged into the RunnableConfig (callbacks, tags, metadata, run_id).
         """
         current = self.snapshot(thread_id)
         payload: Any
@@ -135,7 +138,9 @@ class ResearchService:
 
         try:
             for mode, chunk in self.graph.stream(
-                payload, thread_config(thread_id), stream_mode=["custom", "updates"]
+                payload,
+                thread_config(thread_id, **(config_extra or {})),
+                stream_mode=["custom", "updates"],
             ):
                 data = cast(dict[str, Any], chunk)
                 if mode == "custom":

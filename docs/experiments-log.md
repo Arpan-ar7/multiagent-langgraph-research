@@ -68,3 +68,12 @@ Runs: 2026-11-18/19, OpenRouter free tier (no Groq key yet).
   **Fix:** the schema invariant is now 1–5 (the LLM is still asked for 3–5), plan edits go through the validating `ResearchPlan.with_sub_questions()`, and pytest turns `UserWarning` (Pydantic serializer warnings) into errors.
 - Run options moved from `config` into the graph state, so a resumed run keeps the options it started with.
 - **Live CLI check against an exhausted quota:** each fallback model was tried once, the daily-quota error was *not* retried, and the run stopped cleanly with a resume command. Logging `repr()` of provider errors leaked response headers, cookies and the account id into logs, so errors are now logged with `describe()` (type + first line).
+
+## Phase 3 · Evaluation harness
+
+- Built `research_system/evals`: benchmark set (5 question types), deterministic metrics, LLM judge on a dedicated `judge` model chain (Ling → Nemotron, not the writer's model), resumable runner, LangSmith dataset sync and per-run feedback.
+- **Dry-run bug 1:** dry-run threads shared the real checkpoint DB and thread ids, so a real eval would have found "finished" fake runs and scored them as results. Dry runs now use `checkpoints-dryrun.sqlite`.
+- **Dry-run bug 2:** the stub critic kept call counts per question across configurations, so `critic_loop` never looped. Stubs are now stateless (they decide from the report content). The lesson: shared mutable state between evaluated runs silently biases comparisons.
+- mypy caught stub parameter names that didn't match the agent `Protocol`s (keyword callers would break).
+- Verified: re-runs skip finished pairs, `--max-runs` caps a session, and the LangSmith dataset sync is idempotent (5 examples).
+- ⏳ Real results: about 17 requests per single-pass run and up to about 32 with the critic loop (including the judge), so 3 questions × 2 configs needs about 3 days on the free tier (50/day) or one session with credits.
