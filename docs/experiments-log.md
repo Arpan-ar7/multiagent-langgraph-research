@@ -61,3 +61,10 @@ Runs: 2026-11-18/19, OpenRouter free tier (no Groq key yet).
 
 - The pipeline is verified in `DRY_RUN` mode: the callback counter sees calls inside parallel threads (7 calls single pass, 11 with the loop).
 - ⏳ Real `single_pass` vs `critic_loop` results are pending quota (~180 requests for 3 questions × 2 configs).
+
+## Phase 2 · Findings while productionising
+
+- **Bug found by tests:** trimming a plan to fewer than 3 sub-questions (`--sub-questions 2`, or plan review) created an *invalid* `ResearchPlan`, because `model_copy(update=)` skips validation. When LangGraph restores a checkpoint, it tries `cls(**data)` and, on validation failure, **silently falls back to `model_construct`**, which leaves nested models as dicts. A resumed run could then crash on `q.question`.
+  **Fix:** the schema invariant is now 1–5 (the LLM is still asked for 3–5), plan edits go through the validating `ResearchPlan.with_sub_questions()`, and pytest turns `UserWarning` (Pydantic serializer warnings) into errors.
+- Run options moved from `config` into the graph state, so a resumed run keeps the options it started with.
+- **Live CLI check against an exhausted quota:** each fallback model was tried once, the daily-quota error was *not* retried, and the run stopped cleanly with a resume command. Logging `repr()` of provider errors leaked response headers, cookies and the account id into logs, so errors are now logged with `describe()` (type + first line).

@@ -1,0 +1,66 @@
+"""LLM factory: provider quirks and the bounded structured-output repair loop."""
+
+from __future__ import annotations
+
+from typing import Any
+
+import pytest
+from langchain_core.exceptions import OutputParserException
+from langchain_core.messages import BaseMessage, HumanMessage
+from langchain_core.runnables import RunnableLambda
+from pydantic import BaseModel, SecretStr
+
+from research_system.config.llm import LLMFactory, make_chat_model
+from research_system.config.settings import ModelSpec, Settings
+
+
+class Answer(BaseModel):
+    value: int
+
+
+def _settings(**kw: Any) -> Settings:
+    return Settings(_env_file=None, openrouter_api_key=SecretStr("test-key"), **kw)  # type: ignore[call-arg]
+
+
+def test_openrouter_timeout_is_converted_to_milliseconds() -> None:
+    """Regression for the nb 01 gotcha: ChatOpenRouter's timeout is in ms."""
+    model = make_chat_model(
+        ModelSpec(provider="openrouter", model="x/y:free"), _settings(llm_timeout_s=45)
+    )
+    assert model.request_timeout == 45_000  # type: ignore[attr-defined]
+
+
+def _factory_with(
+    monkeypatch: pytest.MonkeyPatch, outcomes: list[Any], **kw: Any
+) -> tuple[LLMFactory, list[list[BaseMessage]]]:
+    """Factory whose structured runnable replays `outcomes` (exceptions are raised)."""
+    seen: list[list[BaseMessage]] = []
+
+    def fake(messages: list[BaseMessage]) -> Any:
+        seen.append(list(messages))
+        outcome = outcomes.pop(0)
+        if isinstance(outcome, Exception):
+            raise outcome
+        return outcome
+
+    factory = LLMFactory(_settings(**kw))
+    monkeypatch.setattr(factory, "structured", lambda *a, **k: RunnableLambda(fake))
+    return factory, seen
+
+
+def test_invalid_output_is_repaired_with_error_feedback(monkeypatch: pytest.MonkeyPatch) -> None:
+    factory, seen = _factory_with(
+        monkeypatch, [OutputParserException("missing field value"), Answer(value=7)]
+    )
+    result = factory.invoke_structured(Answer, "reasoning", [HumanMessage("q")])
+    assert result == Answer(value=7)
+    assert len(seen) == 2
+    assert "missing field value" in str(seen[1][-1].content)  # the model saw its own error
+
+
+def test_repair_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
+    errors = [OutputParserException(f"bad {i}") for i in range(5)]
+    factory, seen = _factory_with(monkeypatch, errors, structured_repair_attempts=2)
+    with pytest.raises(OutputParserException):
+        factory.invoke_structured(Answer, "reasoning", [HumanMessage("q")])
+    assert len(seen) == 3  # 1 attempt + 2 repairs

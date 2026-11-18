@@ -63,6 +63,8 @@ markers = [
     "live: tests that call real external APIs (need keys)",
 ]
 addopts = "-m 'not live'"
+# Pydantic serializer warnings signal invalid models (see test_checkpoint_roundtrip_keeps_nested_models)
+filterwarnings = ["error::UserWarning"]
 
 [dependency-groups]
 dev = [
