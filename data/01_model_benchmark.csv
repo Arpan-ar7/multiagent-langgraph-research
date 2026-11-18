@@ -1,0 +1,5 @@
+provider,model,plain_s,plain_tokens,plain_preview,tool_call_ok,tool_args,structured_ok,n_subq,test_plain_error,test_tools_error,structured_err
+openrouter,nvidia/nemotron-3.5-super-vl:free,4.7,381.0,"• **Retrieval-Augmented Generation (RAG):** Ground responses in external, verifi",True,"{'query': 'retrieval-augmented generation', 'max_results': 10}",True,5.0,,,
+openrouter,inclusionai/ling-3.2-flash:free,38.2,543.0,- **Retrieval-Augmented Generation (RAG) and grounding:** Augmenting the model w,True,"{'max_results': 10, 'query': 'retrieval-augmented generation'}",True,5.0,,,
+openrouter,baidu/ernie-5.5-flash-preview:free,1.8,210.0,- Retrieval-augmented generation (RAG): Ground model outputs in retrieved extern,True,"{'max_results': 10, 'query': 'retrieval-augmented generation'}",True,5.0,,,
+openrouter,google/gemma-4-31b-it:free,,,,,,False,,TooManyRequestsResponseError: Provider returned error,TooManyRequestsResponseError: Provider returned error,TooManyRequestsResponseError

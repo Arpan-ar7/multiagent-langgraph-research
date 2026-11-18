@@ -14,7 +14,7 @@ repos:
         language: system
         types: [python]
       - id: nbstripout
-        name: strip notebook outputs
-        entry: uv run nbstripout
+        name: strip notebook metadata (outputs kept for GitHub rendering)
+        entry: uv run nbstripout --keep-output --keep-count
         language: system
         files: \.ipynb$

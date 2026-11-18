@@ -25,7 +25,9 @@ htmlcov/
 *.sqlite
 *.sqlite3
 *.db
-data/
+data/*
+!data/*.csv
+data/*dryrun*
 reports/*
 !reports/.gitkeep
 logs/

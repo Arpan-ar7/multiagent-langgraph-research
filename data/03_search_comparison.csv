@@ -1,0 +1,9 @@
+provider,query,seconds,n_results,avg_chars,error
+tavily,small language models on-devic,5.0,5,1122,
+tavily,evaluation of retrieval-augmen,3.3,5,1217,
+duckduckgo,small language models on-devic,4.8,5,236,
+duckduckgo,evaluation of retrieval-augmen,7.3,5,678,
+arxiv,small language models on-devic,4.5,5,1111,
+arxiv,evaluation of retrieval-augmen,2.1,5,1281,
+wikipedia,small language models on-devic,8.9,2,1500,
+wikipedia,evaluation of retrieval-augmen,7.5,2,1500,

@@ -1,7 +1,63 @@
 # Experiments Log
 
-Decisions from each Phase 1 notebook, recorded here so the production code can point back to the evidence.
+Decisions from the Phase 1 notebooks, with the evidence behind each. Production code (Phase 2) implements these decisions.
+Runs: 2026-11-18/19, OpenRouter free tier (no Groq key yet).
 
-| Notebook | Decision | Evidence / reason |
-|---|---|---|
-| _01_llm_providers_ | _TBD_ | |
+## 01 · LLM providers (`notebooks/01_llm_providers.ipynb`, data: `data/01_model_benchmark.csv`)
+
+| Model | Latency | Tool call | Structured output |
+|---|---|---|---|
+| nvidia/nemotron-3.5-super-vl:free | 4.7 s | ✅ | ✅ |
+| baidu/ernie-5.5-flash-preview:free | **1.8 s** | ✅ | ✅ |
+| inclusionai/ling-3.2-flash:free | 38.2 s | ✅ | ✅ |
+| google/gemma-4-31b-it:free | n/a (HTTP 429 upstream) | n/a | n/a |
+
+- **Decision:** reasoning roles (planner, fact-checker, critic) use Nemotron; worker roles (researcher, writer) use Ernie; each falls back to the other, then Ling.
+- **Decision:** a provider-agnostic `make_model()` factory; Groq models are put first in each chain automatically once `GROQ_API_KEY` is set.
+- **Gotcha:** `ChatOpenRouter(timeout=...)` is in **milliseconds**. `timeout=20` made calls "hang" for minutes while the SDK retried. The factory always takes seconds.
+
+## 02 · Prompting & structured output
+
+- **Decision:** Pydantic structured output for every decision-making agent; `Field` descriptions are prompt text.
+- **Decision:** build structured runnables **per model, then add fallbacks**. Proxying `with_structured_output` through a fallback wrapper breaks on fake test models.
+- **Finding:** Pydantic validation errors arrive in waves (item errors before list-length errors), so repair is a bounded loop (≤2 attempts).
+- **Finding:** a one-shot example did *not* make sub-questions more concrete (5/5 → 4/4 concrete). The planner stays **zero-shot**, to be revisited in evals.
+
+## 03 · Tools & search (data: `data/03_search_comparison.csv`)
+
+- Tavily: ~2–5 s, ~1,200 chars per result, relevance-scored. Extract returns 20–30k-char pages, so they are truncated to 4,000.
+- DuckDuckGo (`ddgs`): **intermittent** (one probe failed on every backend, another run worked), snippets 3–5× shorter. Best-effort fallback only.
+- arXiv: relevance sort mixes in old papers; **date sort destroys relevance**. Use relevance sort with years in the query.
+- **Decision:** unified `SearchResult` schema; tools never raise (they return `ERROR: ... try X`); results are numbered with URLs for citation.
+
+## 04 · Researcher (ReAct agent)
+
+- **Decision:** `create_agent` + `ToolStrategy(Finding)` + middleware (model fallback, ≤4 tool calls, ≤7 model calls).
+- Finding: models request tools in parallel. The limit middleware blocks the excess (6 requested → 2 blocked).
+- Finding: a typical sub-question takes 4 model calls, ~11–14 s and ~15k tokens. All 4 cited URLs were grounded.
+
+## 05 · LangGraph fundamentals
+
+- `Send` fan-out: 5 × 1 s tasks finished in 1.01 s.
+- **Finding (LangGraph 1.2.17):** node `error_handler` must return a `Command` with `goto`, and **does not apply to `Send` tasks**.
+- **Decision:** researchers catch their own errors and return a failure record; sequential nodes use `RetryPolicy` + `error_handler`.
+
+## 06 · Individual agents (synthetic fixtures with planted problems)
+
+- The fact-checker caught **both** planted problems: the 58% vs <30% contradiction (LLM) and the fabricated citation (deterministic grounding).
+- The writer produced 0 citation problems. References are built by code, so they are correct by construction.
+- Critic: rubric scores; **code** decides approval (all scores ≥ 4).
+- One fact-check → write → critique pass costs 3 LLM calls (~42 s).
+
+## 07 · Orchestration
+
+- The full graph ran through planning → human approval → 3 parallel researchers → fact-check, then hit the **free-models-per-day** quota at the writer. With in-memory checkpoints, all research was lost.
+- **Decision:** `SqliteSaver` + an allowlist serializer. A crashed run resumes at the failed node (verified: researchers are not re-run).
+- **Decision:** explicit `retry_on`. LangGraph's default skips `RuntimeError`/`ValueError`/`OSError` and retries unknown types.
+- Stub-agent error injection (dependency injection) runs in 0.2 s and covers a failed researcher, a skipped fact-check and a critic loop.
+- ⏳ The real end-to-end run is pending quota.
+
+## 08 · Evaluation
+
+- The pipeline is verified in `DRY_RUN` mode: the callback counter sees calls inside parallel threads (7 calls single pass, 11 with the loop).
+- ⏳ Real `single_pass` vs `critic_loop` results are pending quota (~180 requests for 3 questions × 2 configs).

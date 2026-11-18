@@ -2,7 +2,7 @@
 
 A research assistant built with **LangChain** and **LangGraph**. A team of LLM agents plans the research, searches the web and academic sources in parallel, checks claims across sources, writes a report with citations, and reviews it, repeating until the report is good enough.
 
-> **Status:** Phase 0 (foundation) is done. Next up: Phase 1 (notebook experiments).
+> **Status:** Phase 1 (experiments) is nearly done: notebooks 01–06 are executed; 07–08 wait on API quota for their real runs. See [docs/experiments-log.md](docs/experiments-log.md).
 
 ## Architecture (planned)
 
@@ -51,7 +51,7 @@ reports/              generated reports (gitignored)
 ## Roadmap
 
 - [x] Phase 0: Foundation and tooling
-- [ ] Phase 1: Jupyter experiments
+- [~] Phase 1: Jupyter experiments (01–06 done, 07–08 pending real runs)
 - [ ] Phase 2: Production implementation
 - [ ] Phase 3: Tests and evaluation
 - [ ] Phase 4: FastAPI + Streamlit UI
