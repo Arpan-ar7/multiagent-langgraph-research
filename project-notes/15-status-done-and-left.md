@@ -1,6 +1,6 @@
 # 15 · Status: what is done and what is left
 
-Snapshot: **2026-11-19**. Git commits: Phase 0 `b440a1a` · 1 `36b5d4f` · 2 `c5899b0` · 3 `2847d94` · 4 `d269eeb` · 5 (this commit).
+Snapshot: **2026-11-19**. Git commits: Phase 0 `b440a1a` · 1 `36b5d4f` · 2 `c5899b0` · 3 `2847d94` · 4 `d269eeb` · 5 `c6d3862` (+ docs and CI fixes).
 
 ## ✅ Done
 
@@ -37,14 +37,15 @@ Snapshot: **2026-11-19**. Git commits: Phase 0 `b440a1a` · 1 `36b5d4f` · 2 `c5
 - [x] GitHub Actions CI (lint, format, types, tests, Docker build + compose smoke test)
 - [x] ADRs 0001–0005, README updated (Mermaid diagram, Docker, CI sections)
 - [x] Fixes from real runs: retired Groq models, Groq JSON-schema structured output, quota errors no longer hidden, Groq retry budget, Groq moved to last fallback, LangSmith feedback ids
-- [x] These project notes
+- [x] These project notes + `docs/START-HERE.md`
+- [x] Pushed to GitHub (https://github.com/Arpan-ar7/multiagent-langgraph-research); **CI green**: lint, types, 87 tests, Docker build and compose smoke test
 
 ## ⏳ Left to do
 
 | # | Task | Blocked by | How |
 |---|---|---|---|
-| 1 | Run the Docker image locally | WSL2 not installed | Admin PowerShell: `wsl --install`, restart, start Docker Desktop, `docker compose up --build` |
-| 2 | Run CI on GitHub | No remote | Create a GitHub repo → `git remote add origin <url>` → `git push -u origin main`; add a CI badge |
+| 1 | Run the Docker image on this PC (it already works in CI) | WSL2 not installed | Admin PowerShell: `wsl --install`, restart, start Docker Desktop, `docker compose up --build` |
+| 2 | Set the GitHub repo description and topics | Needs the web UI | Repo page → ⚙️ next to "About" → paste the description and topics |
 | 3 | Finish the benchmark (9 of 10 pairs left) | OpenRouter free quota (~50 requests/day; one run ≈ 37) | `uv run research-eval --max-runs 1` once a day, or add $10 of credits (→ 1,000 free requests/day) and run all at once |
 | 4 | Put the eval results table into README | #3 | `uv run research-eval --summary` |
 | 5 | Re-run notebook 07 with healthy quota | Quota | Delete `data/07_checkpoints.sqlite`, then Restart & Run All |

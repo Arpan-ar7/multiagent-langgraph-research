@@ -1,6 +1,6 @@
 # 13 · Docker and CI (Phase 5)
 
-Status: ✅ files written and statically validated (`docker compose config` passes); 🟡 the image has **not been built yet**. Docker Desktop on this PC cannot start its engine because **WSL2 is not installed**, and the repo has no GitHub remote yet, so CI has not run.
+Status: ✅ **verified on GitHub Actions** (2026-11-19, run 44535869269): the image builds, `docker compose up` starts both containers, and the API and UI health checks pass. Repo: https://github.com/Arpan-ar7/multiagent-langgraph-research. 🟡 Not yet run on this PC: Docker Desktop cannot start its engine because **WSL2 is not installed**.
 
 ## Dockerfile: one image, two uses (ADR 0005)
 
@@ -37,6 +37,6 @@ Build the image (with a GitHub Actions cache) → validate the compose file → 
 
 ## To finish this phase
 
-1. Install WSL2 (admin PowerShell: `wsl --install`, then restart) → start Docker Desktop → `docker compose up --build` → open http://localhost:8501.
-2. Create a GitHub repo, `git remote add origin ...`, `git push -u origin main` → watch the Actions tab → add a CI badge to the README.
+1. ✅ Pushed to GitHub; CI is green and the README has the CI badge.
+2. To run locally: install WSL2 (admin PowerShell: `wsl --install`, then restart) → start Docker Desktop → `docker compose up --build` → open http://localhost:8501.
 3. Optional deployment: Render / Hugging Face Spaces (Docker) or Streamlit Community Cloud.
