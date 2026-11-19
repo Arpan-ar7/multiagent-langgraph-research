@@ -1,0 +1,44 @@
+# API + UI.  `docker compose up --build`, then open http://localhost:8501
+# API keys are read from .env at runtime (never baked into the image).
+
+services:
+  api:
+    build: .
+    image: research-system:latest
+    command: ["research-api"]
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "8000:8000"
+    volumes:
+      - research-data:/app/data      # checkpoints (run history, resume) and the LLM cache
+      - ./reports:/app/reports
+    restart: unless-stopped
+
+  ui:
+    image: research-system:latest   # same image, built by the api service
+    pull_policy: never              # it only exists locally; never try a registry
+    command:
+      - streamlit
+      - run
+      - ui/streamlit_app.py
+      - --server.address=0.0.0.0
+      - --server.port=8501
+      - --server.headless=true
+    environment:
+      RESEARCH_API_URL: http://api:8000
+    ports:
+      - "8501:8501"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8501/_stcore/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      start_period: 20s
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  research-data:

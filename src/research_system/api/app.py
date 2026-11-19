@@ -150,7 +150,11 @@ def create_app(service: ResearchService | None = None) -> FastAPI:
 
 
 def run() -> None:
-    """Console entry point: `uv run research-api`."""
+    """Console entry point: `uv run research-api` (bind with RS_API_HOST / RS_API_PORT)."""
+    import os
+
     import uvicorn
 
-    uvicorn.run("research_system.api.app:create_app", factory=True, host="127.0.0.1", port=8000)
+    host = os.getenv("RS_API_HOST", "127.0.0.1")
+    port = int(os.getenv("RS_API_PORT", "8000"))
+    uvicorn.run("research_system.api.app:create_app", factory=True, host=host, port=port)

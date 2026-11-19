@@ -64,3 +64,29 @@ def test_repair_is_bounded(monkeypatch: pytest.MonkeyPatch) -> None:
     with pytest.raises(OutputParserException):
         factory.invoke_structured(Answer, "reasoning", [HumanMessage("q")])
     assert len(seen) == 3  # 1 attempt + 2 repairs
+
+
+def test_groq_structured_output_uses_json_schema_mode() -> None:
+    """Regression: gpt-oss on Groq mis-cased the schema tool name (400 tool_use_failed)."""
+    from research_system.config.llm import structured_output_kwargs
+
+    assert structured_output_kwargs(ModelSpec(provider="groq", model="openai/gpt-oss-120b")) == {
+        "method": "json_schema"
+    }
+    assert structured_output_kwargs(ModelSpec(provider="openrouter", model="x/y:free")) == {}
+
+
+def test_groq_first_uses_current_groq_models() -> None:
+    s = _settings(groq_api_key=SecretStr("gk"), groq_position="first")
+    assert s.models_for("reasoning")[0] == ModelSpec(provider="groq", model="openai/gpt-oss-120b")
+    assert s.models_for("worker")[0] == ModelSpec(provider="groq", model="openai/gpt-oss-20b")
+    assert all(m.provider != "groq" for m in s.models_for("judge"))
+
+
+def test_groq_uses_its_own_retry_budget() -> None:
+    """Groq's per-minute token limits clear in seconds, so it retries more than other providers."""
+    s = _settings(groq_api_key=SecretStr("gk"), llm_max_retries=1, groq_max_retries=4)
+    groq = make_chat_model(ModelSpec(provider="groq", model="openai/gpt-oss-20b"), s)
+    other = make_chat_model(ModelSpec(provider="openrouter", model="x/y:free"), s)
+    assert groq.max_retries == 4  # type: ignore[attr-defined]
+    assert other.max_retries == 1  # type: ignore[attr-defined]

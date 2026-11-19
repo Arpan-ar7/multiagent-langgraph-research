@@ -73,10 +73,20 @@ class Settings(BaseSettings):
     judge_models: list[ModelSpec] = Field(
         default_factory=lambda: [ModelSpec.parse(m) for m in (_LING, _NEMOTRON)]
     )
-    groq_reasoning_model: str = "llama-3.3-70b-versatile"
-    groq_worker_model: str = "llama-3.1-8b-instant"
+    # Llama 3.x was retired from Groq (404 model_not_found, 2026-11); both gpt-oss models pass
+    # structured-output and tool-calling probes there.
+    groq_reasoning_model: str = "openai/gpt-oss-120b"
+    groq_worker_model: str = "openai/gpt-oss-20b"
+    # Where Groq joins each chain when GROQ_API_KEY is set. "last" (default): a rescue model
+    # after OpenRouter, because Groq's free tier allows only 8k tokens/minute, too little for
+    # parallel researchers. "first": primary model (sensible on a paid Groq tier).
+    groq_position: Literal["first", "last"] = "last"
     llm_timeout_s: float = 90.0
     llm_max_retries: int = 1  # low on purpose: fail fast and let the fallback chain take over
+    # Groq's free tier has small per-minute token limits (8k TPM on gpt-oss-20b), so parallel
+    # researchers hit 429s that clear within seconds. Its SDK honours `retry-after`, so a few
+    # retries wait those out instead of failing over to a (possibly exhausted) fallback.
+    groq_max_retries: int = Field(default=4, ge=0, le=10)
     writer_temperature: float = 0.3
 
     # --- Research behaviour (defaults; overridable per run) --------------------------
@@ -109,7 +119,7 @@ class Settings(BaseSettings):
         return value
 
     def models_for(self, role: Role) -> list[ModelSpec]:
-        """Fallback chain for a role. Groq goes first automatically when its key is set.
+        """Fallback chain for a role. Groq joins it (see `groq_position`) when its key is set.
 
         The judge chain is left untouched so evaluation stays independent of the system's models.
         """
@@ -118,7 +128,8 @@ class Settings(BaseSettings):
         chain = list(self.reasoning_models if role == "reasoning" else self.worker_models)
         if self.groq_api_key:
             groq = self.groq_reasoning_model if role == "reasoning" else self.groq_worker_model
-            chain.insert(0, ModelSpec(provider="groq", model=groq))
+            spec = ModelSpec(provider="groq", model=groq)
+            chain.insert(0 if self.groq_position == "first" else len(chain), spec)
         return chain
 
 

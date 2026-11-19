@@ -70,11 +70,13 @@ class TestSettings:
             ModelSpec(provider="groq", model="c"),
         ]
 
-    def test_groq_is_prepended_only_when_key_present(self) -> None:
+    def test_groq_joins_the_chain_only_when_key_present(self) -> None:
         without = Settings(_env_file=None, groq_api_key=None)  # type: ignore[call-arg]
         with_key = Settings(_env_file=None, groq_api_key=SecretStr("k"))  # type: ignore[call-arg]
-        assert without.models_for("worker")[0].provider == "openrouter"
-        assert with_key.models_for("worker")[0] == ModelSpec(
+        assert all(m.provider == "openrouter" for m in without.models_for("worker"))
+        # Default: Groq is the rescue model at the end (its free tier is 8k tokens/minute).
+        assert with_key.models_for("worker")[0].provider == "openrouter"
+        assert with_key.models_for("worker")[-1] == ModelSpec(
             provider="groq", model=with_key.groq_worker_model
         )
 

@@ -166,12 +166,15 @@ class EvalRunner:
             from langchain_core.tracers.langchain import wait_for_all_tracers
 
             wait_for_all_tracers()  # make sure the run exists in LangSmith before scoring it
+            # Newer SDKs want the run's project (session) and trace on every feedback call.
+            # The evaluated run is the trace root, so its id is also the trace id.
+            ids = {"trace_id": run_id, "session_id": self.langsmith.read_run(run_id).session_id}
             for key in JUDGE_KEYS:
                 self.langsmith.create_feedback(
-                    run_id, key=key, score=getattr(score, key) / 5, comment=score.rationale
+                    run_id, key=key, score=getattr(score, key) / 5, comment=score.rationale, **ids
                 )
             for key in ("grounding_rate", "citation_problems", "critic_iterations"):
-                self.langsmith.create_feedback(run_id, key=key, score=row[key])
+                self.langsmith.create_feedback(run_id, key=key, score=row[key], **ids)
         except Exception as e:  # feedback is best-effort; local results are the source of truth
             log.warning("langsmith_feedback_failed", error=describe(e))
 

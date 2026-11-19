@@ -2,15 +2,20 @@
 
 A research assistant built with **LangChain** and **LangGraph**. A team of LLM agents plans the research, searches the web and academic sources **in parallel**, fact-checks claims across sources, writes a report with **verifiable citations**, and critiques it, looping back for more research when it finds gaps.
 
-> **Status:** Phases 0–4 are built (78 tests, mypy strict clean): the agent graph, an evaluation harness, a streaming FastAPI backend and a Streamlit UI. The evaluation harness is verified in dry-run mode, and the real benchmark run is in progress under the free-tier API quota. See [docs/architecture.md](docs/architecture.md) and [docs/experiments-log.md](docs/experiments-log.md).
+> **Status:** Phases 0–5 are built (78 tests, mypy strict clean): the agent graph, an evaluation harness, a streaming FastAPI backend, a Streamlit UI, a Docker image and GitHub Actions CI. The evaluation harness is verified in dry-run mode, and the real benchmark run is in progress under the free-tier API quota. See [project-notes/](project-notes/README.md) (the full explanation from the basics, with status), [docs/architecture.md](docs/architecture.md), [docs/decisions/](docs/decisions/) and [docs/experiments-log.md](docs/experiments-log.md).
 
 ## How it works
 
-```
-Query → Planner → [Human review] → Researchers ×N (parallel) → Fact-checker → Writer → Critic
-                                        ▲                                              │
-                                        └──────── follow-up questions (bounded loop) ◄─┘
-                                                                     approved → Final report
+```mermaid
+flowchart LR
+    Q([query]) --> P[Planner]
+    P --> H{{Human review<br/>optional interrupt}}
+    H -- "Send × N" --> R[Researchers ×N<br/>parallel]
+    R --> F[Fact-checker]
+    F --> W[Writer]
+    W --> C[Critic]
+    C -- "gaps: follow-up questions<br/>(bounded loop)" --> R
+    C -- approved --> Z([Final report])
 ```
 
 | Agent | What it does |
@@ -29,7 +34,7 @@ Engineering highlights:
 
 ## Tech stack
 
-LangGraph · LangChain (`create_agent`, middleware, structured output) · OpenRouter (free models) · Groq (optional, used first when configured) · Tavily · arXiv · Wikipedia · LangSmith · FastAPI (SSE) · Streamlit · Pydantic · structlog · pytest · mypy (strict) · ruff · uv
+LangGraph · LangChain (`create_agent`, middleware, structured output) · OpenRouter (free models) · Groq (optional rescue model; `RS_GROQ_POSITION=first` makes it primary) · Tavily · arXiv · Wikipedia · LangSmith · FastAPI (SSE) · Streamlit · Pydantic · structlog · pytest · mypy (strict) · ruff · uv
 
 ## Setup
 
@@ -56,6 +61,15 @@ uv run research --resume <thread-id>                       # continue a paused o
 uv run research-api                          # terminal 1: API on http://127.0.0.1:8000 (docs at /docs)
 uv run streamlit run ui/streamlit_app.py     # terminal 2: UI on http://localhost:8501
 ```
+
+### Docker
+
+```bash
+cp .env.example .env          # add your keys (read at runtime, never baked into the image)
+docker compose up --build     # API on :8000, UI on http://localhost:8501
+```
+
+One image serves both containers. Checkpoints and the LLM cache persist in the `research-data` volume, and reports are written to `./reports` (on Linux hosts, make it writable by UID 1000). The API alone: `docker build -t research-system . && docker run --env-file .env -p 8000:8000 research-system`.
 
 The UI shows a live agent timeline (which researchers are running, follow-up rounds from the critic), an optional plan-approval step, the report with clickable `[n]` citations, a source table with credibility scores, the critic's rubric, per-agent timings, a Markdown download, and the run history from the checkpointer. Interrupted runs (for example when the daily quota runs out) can be resumed with one click. Set `RESEARCH_API_URL` to point the UI at another API.
 
@@ -88,8 +102,10 @@ uv run research-eval --summary            # results table (also written to repor
 ```bash
 uv run pytest                 # unit + integration (no network)
 uv run pytest -m live         # smoke tests against real APIs (uses quota)
-uv run ruff check . && uv run mypy src ui
+uv run ruff check . && uv run ruff format --check . && uv run mypy src ui
 ```
+
+CI (`.github/workflows/ci.yml`) runs on every push and pull request. It runs ruff (lint and format), strict mypy and the tests with no API keys. It then builds the Docker image and starts the compose stack, checking that the API and UI health endpoints respond.
 
 ## Project layout
 
@@ -100,7 +116,9 @@ src/research_system/api/   FastAPI app, background run manager, typed client
 ui/streamlit_app.py   Streamlit front end (view model in src/research_system/ui/)
 tests/                unit · integration (graph, API, UI) · live
 src/research_system/evals/  benchmark, metrics, judge, resumable runner, report
-docs/                 architecture, decision records, experiment log
+docs/                 architecture, decision records (ADRs), experiment log
+project-notes/        detailed learning notes: how every part works, status, how to run
+Dockerfile, docker-compose.yml, .github/workflows/ci.yml
 reports/              generated reports (gitignored)
 ```
 
@@ -111,4 +129,4 @@ reports/              generated reports (gitignored)
 - [x] Phase 2: Production implementation
 - [~] Phase 3: Evaluation harness done (LangSmith dataset, LLM-as-judge, resumable runner); real benchmark runs pending quota
 - [x] Phase 4: FastAPI (SSE) + Streamlit UI
-- [ ] Phase 5: Docker, CI, docs, demo
+- [~] Phase 5: Docker, compose, CI and ADRs done; demo GIF and benchmark table pending real runs

@@ -18,6 +18,14 @@ def describe(exc: BaseException, limit: int = 200) -> str:
     return f"{type(exc).__name__}: {message[:limit]}" if message else type(exc).__name__
 
 
+class AllModelsFailedError(RuntimeError):
+    """Every model in a fallback chain failed; `errors` holds each failure in chain order."""
+
+    def __init__(self, errors: list[Exception]) -> None:
+        self.errors = errors
+        super().__init__("all models failed: " + " | ".join(describe(e, 120) for e in errors))
+
+
 QUOTA_MARKERS = ("per-day", "per day", "daily", "quota", "insufficient credits")
 
 
@@ -34,6 +42,8 @@ def status_code(exc: BaseException) -> int | None:
 
 def is_quota_exhausted(exc: BaseException) -> bool:
     """True for daily/plan quota errors, which no retry can fix."""
+    if isinstance(exc, AllModelsFailedError):
+        return any(is_quota_exhausted(e) for e in exc.errors)
     text = str(exc).lower()
     return any(marker in text for marker in QUOTA_MARKERS)
 
@@ -42,6 +52,8 @@ def is_retryable(exc: BaseException) -> bool:
     """Retry network errors, timeouts, HTTP 5xx and per-minute rate limits (429)."""
     if is_quota_exhausted(exc):
         return False
+    if isinstance(exc, AllModelsFailedError):  # worth retrying if any model may recover
+        return any(is_retryable(e) for e in exc.errors)
     if isinstance(exc, (ConnectionError, TimeoutError)):
         return True
     name = type(exc).__name__.lower()

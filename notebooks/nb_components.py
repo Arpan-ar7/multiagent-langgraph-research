@@ -30,9 +30,11 @@ ROLE_MODELS: dict[str, list[tuple[str, str]]] = {
         ("openrouter", "inclusionai/ling-3.2-flash:free"),
     ],
 }
-if os.getenv("GROQ_API_KEY"):  # Groq goes first for every role once a key exists
-    ROLE_MODELS["reasoning"].insert(0, ("groq", "llama-3.3-70b-versatile"))
-    ROLE_MODELS["worker"].insert(0, ("groq", "llama-3.1-8b-instant"))
+if os.getenv("GROQ_API_KEY"):  # Groq joins every chain as the rescue model once a key exists
+    # Llama 3.x was retired from Groq (404, 2026-11), and the free tier's 8k tokens/minute is too
+    # little for parallel researchers, so Groq goes last (see the experiments log, Phase 5).
+    ROLE_MODELS["reasoning"].append(("groq", "openai/gpt-oss-120b"))
+    ROLE_MODELS["worker"].append(("groq", "openai/gpt-oss-20b"))
 
 
 def make_model(
@@ -51,8 +53,10 @@ def make_model(
     if provider == "groq":
         from langchain_groq import ChatGroq
 
+        # More retries on Groq: its per-minute token limits (8k TPM on the free tier) clear in
+        # seconds, and the SDK waits for `retry-after` (see the Phase 5 experiments-log entry).
         return ChatGroq(
-            model=model, temperature=temperature, max_retries=max_retries, timeout=timeout
+            model=model, temperature=temperature, max_retries=max(max_retries, 4), timeout=timeout
         )
     raise ValueError(f"Unknown provider: {provider}")
 
@@ -70,7 +74,13 @@ def llm_for(role: str, temperature: float = 0.0) -> Runnable:
 
 def structured(schema: type[BaseModel], role: str, temperature: float = 0.0) -> Runnable:
     """Structured-output runnable: schema applied per model, then chained as fallbacks (nb 02)."""
-    primary, *backups = [m.with_structured_output(schema) for m in role_models(role, temperature)]
+    # Groq: JSON-schema mode, because gpt-oss sometimes mis-cases the schema tool name (400).
+    primary, *backups = [
+        make_model(p, m, temperature).with_structured_output(
+            schema, **({"method": "json_schema"} if p == "groq" else {})
+        )
+        for p, m in ROLE_MODELS[role]
+    ]
     return primary.with_fallbacks(backups)
 
 

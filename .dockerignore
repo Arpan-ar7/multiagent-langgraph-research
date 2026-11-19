@@ -1,0 +1,21 @@
+# Keep secrets, local state and dev artifacts out of the build context.
+.env
+.env.*
+!.env.example
+.git
+.github
+.venv
+**/__pycache__
+**/*.py[cod]
+.pytest_cache
+.ruff_cache
+.mypy_cache
+.ipynb_checkpoints
+data
+reports
+notebooks
+tests
+docs
+*.sqlite*
+Dockerfile
+docker-compose.yml

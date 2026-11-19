@@ -35,6 +35,10 @@ class FakeLangSmith:
         self.examples: list[SimpleNamespace] = []
         self.dataset = SimpleNamespace(id=uuid4())
         self.created = False
+        self.project_id = uuid4()
+
+    def read_run(self, run_id: Any) -> SimpleNamespace:
+        return SimpleNamespace(id=run_id, session_id=self.project_id)
 
     def create_feedback(self, run_id: Any, **kw: Any) -> None:
         self.feedback.append({"run_id": run_id, **kw})
@@ -118,6 +122,9 @@ def test_feedback_is_attached_to_the_traced_run(settings: Settings) -> None:
         "critic_iterations",
     }
     assert all(str(f["run_id"]) == run_id for f in client.feedback)
+    # Newer LangSmith SDKs require the project (session) and trace on each feedback call.
+    assert all(f["session_id"] == client.project_id for f in client.feedback)
+    assert all(str(f["trace_id"]) == run_id for f in client.feedback)
     assert all(0 < f["score"] <= 1 for f in client.feedback if f["key"] == "relevance")
 
 
