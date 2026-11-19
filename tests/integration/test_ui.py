@@ -37,7 +37,8 @@ def api(
 
 
 def open_ui(thread_id: str | None = None) -> AppTest:
-    at = AppTest.from_file(SCRIPT, default_timeout=15)
+    # Generous: a cold CI runner (first imports) took >15 s for a script run that takes ~5 s warm.
+    at = AppTest.from_file(SCRIPT, default_timeout=60)
     if thread_id:
         at.session_state["thread_id"] = thread_id
     return at.run()
