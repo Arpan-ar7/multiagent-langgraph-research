@@ -2,7 +2,7 @@
 
 A research assistant built with **LangChain** and **LangGraph**. A team of LLM agents plans the research, searches the web and academic sources **in parallel**, fact-checks claims across sources, writes a report with **verifiable citations**, and critiques it, looping back for more research when it finds gaps.
 
-> **Status:** Phases 0–3 are built (58 tests, mypy strict clean). The evaluation harness is verified in dry-run mode, and the real benchmark run is in progress under the free-tier API quota. See [docs/architecture.md](docs/architecture.md) and [docs/experiments-log.md](docs/experiments-log.md).
+> **Status:** Phases 0–4 are built (78 tests, mypy strict clean): the agent graph, an evaluation harness, a streaming FastAPI backend and a Streamlit UI. The evaluation harness is verified in dry-run mode, and the real benchmark run is in progress under the free-tier API quota. See [docs/architecture.md](docs/architecture.md) and [docs/experiments-log.md](docs/experiments-log.md).
 
 ## How it works
 
@@ -24,11 +24,12 @@ Query → Planner → [Human review] → Researchers ×N (parallel) → Fact-che
 Engineering highlights:
 - **Resilience:** per-role model fallback chains, explicit retry policy (no retries on exhausted quotas), graceful degradation, and **SQLite checkpoints, so any crashed run resumes** where it stopped.
 - **Human-in-the-loop:** optional plan approval via LangGraph `interrupt`.
+- **Streaming API + UI:** runs execute in the background, independent of HTTP connections; progress streams over Server-Sent Events that can be replayed (`Last-Event-ID`), so a closed browser tab never stops a run.
 - **Testable by design:** the graph depends only on agent interfaces, so integration tests run the real graph with stub agents in about 8 s, with no API calls.
 
 ## Tech stack
 
-LangGraph · LangChain (`create_agent`, middleware, structured output) · OpenRouter (free models) · Groq (optional, used first when configured) · Tavily · arXiv · Wikipedia · LangSmith · Pydantic · structlog · pytest · mypy (strict) · ruff · uv
+LangGraph · LangChain (`create_agent`, middleware, structured output) · OpenRouter (free models) · Groq (optional, used first when configured) · Tavily · arXiv · Wikipedia · LangSmith · FastAPI (SSE) · Streamlit · Pydantic · structlog · pytest · mypy (strict) · ruff · uv
 
 ## Setup
 
@@ -48,6 +49,23 @@ uv run research "..." --sub-questions 3 --iterations 1     # cheaper run
 uv run research "..." --review                             # approve/edit the plan first
 uv run research --resume <thread-id>                       # continue a paused or interrupted run
 ```
+
+### Web UI
+
+```bash
+uv run research-api                          # terminal 1: API on http://127.0.0.1:8000 (docs at /docs)
+uv run streamlit run ui/streamlit_app.py     # terminal 2: UI on http://localhost:8501
+```
+
+The UI shows a live agent timeline (which researchers are running, follow-up rounds from the critic), an optional plan-approval step, the report with clickable `[n]` citations, a source table with credibility scores, the critic's rubric, per-agent timings, a Markdown download, and the run history from the checkpointer. Interrupted runs (for example when the daily quota runs out) can be resumed with one click. Set `RESEARCH_API_URL` to point the UI at another API.
+
+| Endpoint | Purpose |
+|---|---|
+| `POST /runs` | Start a run (202) and get a `thread_id` |
+| `GET /runs/{id}/events` | Live progress as Server-Sent Events (replayable) |
+| `POST /runs/{id}/review` | Approve or narrow the plan of a paused run |
+| `POST /runs/{id}/resume` | Continue an interrupted run |
+| `GET /runs/{id}` · `/runs/{id}/report` · `/runs` · `/health` | State, Markdown report, history, status |
 
 Reports are saved to `reports/`. Defaults can be overridden with `RS_*` environment variables (see `src/research_system/config/settings.py`).
 
@@ -70,7 +88,7 @@ uv run research-eval --summary            # results table (also written to repor
 ```bash
 uv run pytest                 # unit + integration (no network)
 uv run pytest -m live         # smoke tests against real APIs (uses quota)
-uv run ruff check . && uv run mypy src
+uv run ruff check . && uv run mypy src ui
 ```
 
 ## Project layout
@@ -78,7 +96,9 @@ uv run ruff check . && uv run mypy src
 ```
 notebooks/            Phase 1 experiments (01–08), each ending with observations & decisions
 src/research_system/  config · schemas · prompts · tools · agents · graph · utils · service · cli
-tests/                unit · integration · live
+src/research_system/api/   FastAPI app, background run manager, typed client
+ui/streamlit_app.py   Streamlit front end (view model in src/research_system/ui/)
+tests/                unit · integration (graph, API, UI) · live
 src/research_system/evals/  benchmark, metrics, judge, resumable runner, report
 docs/                 architecture, decision records, experiment log
 reports/              generated reports (gitignored)
@@ -90,5 +110,5 @@ reports/              generated reports (gitignored)
 - [~] Phase 1: Jupyter experiments (01–06 done; 07–08 real runs pending quota)
 - [x] Phase 2: Production implementation
 - [~] Phase 3: Evaluation harness done (LangSmith dataset, LLM-as-judge, resumable runner); real benchmark runs pending quota
-- [ ] Phase 4: FastAPI + Streamlit UI
+- [x] Phase 4: FastAPI (SSE) + Streamlit UI
 - [ ] Phase 5: Docker, CI, docs, demo

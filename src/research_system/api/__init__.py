@@ -1,1 +1,1 @@
-"""api package."""
+"""HTTP API (FastAPI) and its typed client."""

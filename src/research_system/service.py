@@ -27,7 +27,8 @@ from research_system.graph import (
     sqlite_checkpointer,
     thread_config,
 )
-from research_system.schemas import Critique, ResearchPlan
+from research_system.schemas import Critique, Draft, ResearchPlan
+from research_system.utils.citations import source_table
 from research_system.utils.errors import describe
 from research_system.utils.logging import configure_logging, get_logger
 
@@ -55,6 +56,7 @@ class RunSnapshot:
     failures: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     metrics: list[dict[str, Any]] = field(default_factory=list)
+    sources: list[dict[str, Any]] = field(default_factory=list)  # see utils.citations.source_table
     pending: tuple[str, ...] = ()
 
 
@@ -91,6 +93,7 @@ class ResearchService:
             status = RunStatus.DONE
         else:
             status = RunStatus.NEW
+        draft: Draft | None = values.get("draft")
         return RunSnapshot(
             thread_id=thread_id,
             status=status,
@@ -101,8 +104,20 @@ class ResearchService:
             failures=values.get("failures", []),
             warnings=values.get("warnings", []),
             metrics=values.get("metrics", []),
+            sources=source_table(draft.sources, values.get("fact_check")) if draft else [],
             pending=tuple(snap.next),
         )
+
+    def list_runs(self, limit: int = 20) -> list[RunSnapshot]:
+        """Most recently updated runs first (works with any checkpointer)."""
+        latest: dict[str, str] = {}
+        for item in self.checkpointer.list(None):
+            thread_id = item.config["configurable"]["thread_id"]
+            ts = item.checkpoint["ts"]
+            if ts > latest.get(thread_id, ""):
+                latest[thread_id] = ts
+        newest = sorted(latest, key=lambda t: latest[t], reverse=True)[:limit]
+        return [self.snapshot(t) for t in newest]
 
     # ------------------------------------------------------------------ execution
     def stream(

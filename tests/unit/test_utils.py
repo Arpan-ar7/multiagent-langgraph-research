@@ -5,7 +5,13 @@ from __future__ import annotations
 import pytest
 
 from research_system.schemas import FactCheckReport, VerifiedClaim
-from research_system.utils.citations import assemble_report, number_sources, validate_citations
+from research_system.utils.citations import (
+    assemble_report,
+    linkify_citations,
+    number_sources,
+    source_table,
+    validate_citations,
+)
 from research_system.utils.errors import is_quota_exhausted, is_retryable
 from research_system.utils.sources import credibility, domain
 
@@ -35,6 +41,31 @@ class TestCitations:
         assert problems == []
         assert "## References\n1. https://a" in report
         assert report.count("- gap") == 1
+
+    def test_linkify_turns_known_markers_into_links(self) -> None:
+        text = linkify_citations("A [1], B [2] and C [9].", {"https://a": 1, "https://b": 2})
+        assert text == "A [\\[1\\]](https://a), B [\\[2\\]](https://b) and C [9]."
+
+    def test_source_table_scores_and_counts_claims(self) -> None:
+        fc = FactCheckReport(
+            claims=[
+                _claim("https://arxiv.org/abs/1"),
+                _claim("https://arxiv.org/abs/1", "contested"),
+                _claim("https://www.blog.com/x"),
+            ]
+        )
+        rows = source_table({"https://www.blog.com/x": 2, "https://arxiv.org/abs/1": 1}, fc)
+        assert [r["n"] for r in rows] == [1, 2]
+        assert rows[0] | {"url": None} == {
+            "n": 1,
+            "url": None,
+            "domain": "arxiv.org",
+            "credibility": 0.9,
+            "claims": 2,
+            "contested": 1,
+        }
+        assert rows[1]["domain"] == "blog.com" and rows[1]["claims"] == 1
+        assert source_table({"https://a": 1}, None)[0]["claims"] == 0
 
 
 class TestSources:
