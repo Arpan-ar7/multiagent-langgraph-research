@@ -1,5 +1,7 @@
 # Project Notes: Multi-Agent AI Research System
 
+> 📍 Entry point for the whole repo: [docs/START-HERE.md](../docs/START-HERE.md) (the reading order across the notes, docs and code).
+
 These notes explain the whole project **from the basics**: what we are building, why, how every part works, which file does what, what is finished, and what is left.
 They are written for learning, revision and interview preparation. The main `README.md` is the short public overview; these notes are the long version.
 

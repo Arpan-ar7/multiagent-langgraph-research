@@ -1,5 +1,7 @@
 # Multi-Agent AI Research System
 
+> 📍 **New here? Start with [docs/START-HERE.md](docs/START-HERE.md)**: the reading path through the whole project, file by file.
+
 A research assistant built with **LangChain** and **LangGraph**. A team of LLM agents plans the research, searches the web and academic sources **in parallel**, fact-checks claims across sources, writes a report with **verifiable citations**, and critiques it, looping back for more research when it finds gaps.
 
 > **Status:** Phases 0–5 are built (78 tests, mypy strict clean): the agent graph, an evaluation harness, a streaming FastAPI backend, a Streamlit UI, a Docker image and GitHub Actions CI. The evaluation harness is verified in dry-run mode, and the real benchmark run is in progress under the free-tier API quota. See [project-notes/](project-notes/README.md) (the full explanation from the basics, with status), [docs/architecture.md](docs/architecture.md), [docs/decisions/](docs/decisions/) and [docs/experiments-log.md](docs/experiments-log.md).
